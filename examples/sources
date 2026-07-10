@@ -1,0 +1,20 @@
+# Example dist-git `sources` file.
+#
+# Copy this to the repository ROOT as `sources` (no extension) and replace the
+# entry below with your real tarball's checksum.
+#
+# Format (one source per line, BSD `shaNsum --tag` style):
+#   HASHTYPE (filename) = hexdigest
+#
+# - HASHTYPE : SHA512 (preferred) or SHA256.
+# - filename : must match the Source0:/SourceN: filename in your .spec.
+# - hexdigest: checksum of the tarball.
+#
+# Generate the line with:
+#   sha512sum --tag mypackage-1.0.tar.gz >> sources
+#
+# The tarball itself is NOT committed. On build, the workflow looks it up in the
+# lookaside cache by this checksum; on a miss it downloads the matching
+# Source URL from your spec, verifies this checksum, and caches it back.
+#
+SHA512 (mypackage-1.0.tar.gz) = REPLACE_ME_WITH_THE_REAL_SHA512_OF_YOUR_TARBALL
