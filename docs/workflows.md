@@ -67,13 +67,13 @@ pkg-release.yml ──calls──▶ pkg-release-reusable-workflow.yml (qcom-rpm
    │
    ├─ job: build  (same as above, release=true)
    │      on a cache MISS, the verified upstream tarball is CACHED BACK
-   │      ──▶ qualcomm-dnf-repo/sources/<file>/<hashtype>/<hash>/...  (needs QSC_API_KEY)
+   │      ──▶ qualcomm-dnf-repo/sources/<file>/<hashtype>/<hash>/...  (needs an Artifactory credential)
    │
    ▼
    └─ job: publish   ⛔ environment: pkg-release-approval (human approves)
-          QSC_API_KEY → token → jf rt upload
-             *.rpm     ──▶ qualcomm-dnf-repo/<pkg>/<version>/
-             *.src.rpm ──▶ qualcomm-dnf-repo/<pkg>/<version>/src/
+          ARTIFACTORY_ACCESS_TOKEN (or QSC_API_KEY) → jf rt upload
+             *.rpm     ──▶ qualcomm-dnf-repo/10-stream/BaseOS/Packages/
+             *.src.rpm ──▶ qualcomm-dnf-repo/10-stream/BaseOS/Packages/
 ```
 
 Git stores only the spec and a checksum. The tarball is discovered from the
@@ -163,7 +163,8 @@ for each entry in `sources`:
    source — fails the build. This is what makes the cache trustworthy.
 4. **Cache-back** (release builds only): a tarball that had to be fetched from
    upstream is uploaded to the cache so future builds get a cache hit. This needs
-   the `QSC_API_KEY` secret and runs only in the release flow, not on PRs.
+   an Artifactory credential (`ARTIFACTORY_ACCESS_TOKEN`, or `QSC_API_KEY`) and
+   runs only in the release flow, not on PRs.
 
 To bump the version, edit the spec's `Version:` and the checksum in `sources`.
 The next release build fetches the new upstream tarball, verifies it, and
@@ -197,7 +198,14 @@ repository (or organization):
 | Name | Kind | Required | Description |
 |---|---|---|---|
 | `CACHE_BASE_URL` | Variable | **Yes** | Base URL of the lookaside cache that stores your source tarballs (e.g. the Artifactory `qualcomm-dnf-repo/sources` base). The build fails fast if unset. |
-| `QSC_API_KEY` | Secret | Release only | Generates the Artifactory access token used to publish RPMs and to cache source tarballs back. |
+| `ARTIFACTORY_ACCESS_TOKEN` | Secret | Release only | Artifactory access token used to publish RPMs and to cache source tarballs back. **Current recommended credential.** |
+| `QSC_API_KEY` | Secret | Optional | QSC API key exchanged for an Artifactory access token. **Takes precedence** over `ARTIFACTORY_ACCESS_TOKEN` when set. Not the recommended path yet. |
+
+At least one of `ARTIFACTORY_ACCESS_TOKEN` / `QSC_API_KEY` must be set for the
+release flow; the publish step fails if neither is present. The account behind
+whichever credential you use must have Deploy permission on the target repo **and**
+be a member of the [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs)
+Qualcomm list, or Artifactory will reject the upload.
 
 You also need an **environment** named `pkg-release-approval` (Settings →
 Environments). Add required reviewers to it — the release workflow's publish step
@@ -255,8 +263,10 @@ are under the run's **Artifacts**; the package list is in the **Summary**.
 **What it does:** calls `pkg-release-reusable-workflow.yml`, which:
 1. Builds the RPM(s) via the same reusable build workflow (with cache-back enabled).
 2. In the **`pkg-release-approval`** environment (approval gate), uploads the
-   RPMs to Artifactory (`qualcomm-dnf-repo` by default) under
-   `<pkg>/<version>/`.
+   RPMs to Artifactory (`qualcomm-dnf-repo` by default) flat under
+   `10-stream/BaseOS/Packages/` — binary and source RPMs alike, with no `src/`
+   or `output/` subfolders. Artifactory's YUM indexer then generates the
+   `repodata/` (at `10-stream/BaseOS/repodata/` with YUM Metadata Folder Depth `2`).
 
 A maintainer must approve the `pkg-release-approval` gate before anything is
 uploaded.
