@@ -44,8 +44,18 @@ cd pkg-rpm-<component>
 | Setting | Kind | Where | Value / purpose |
 |---|---|---|---|
 | `CACHE_BASE_URL` | **Variable** | Secrets and variables → Actions → *Variables* | Base URL of the Artifactory lookaside cache, e.g. `https://qartifactory.qualcomm.com/artifactory/qualcomm-dnf-repo/sources` |
-| `QSC_API_KEY` | **Secret** | Secrets and variables → Actions → *Secrets* | QSC API key; exchanged for a JFrog token to publish. Release only. |
+| `ARTIFACTORY_ACCESS_TOKEN` | **Secret** | Secrets and variables → Actions → *Secrets* | Artifactory access token used to publish RPMs and cache sources back. Release only. **Current recommended credential.** |
 | `pkg-release-approval` | **Environment** | Environments | Approval gate for publishing — add required reviewers. |
+
+> **Publishing access:** the account behind `ARTIFACTORY_ACCESS_TOKEN` must be a
+> member of the [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs)
+> Qualcomm list, or Artifactory will reject the upload. Request membership before
+> your first release.
+
+> **Note:** a `QSC_API_KEY` secret (exchanged for an Artifactory token, and taking
+> precedence over `ARTIFACTORY_ACCESS_TOKEN` when set) is also supported by the
+> release workflow. It is **not** the recommended path yet; this README will be
+> updated to prefer it once the QSC key issue is resolved.
 
 You also need a **self-hosted runner** available to the repo (the build/publish
 jobs use `runs-on: [self-hosted]`), with **Docker** installed.
@@ -124,10 +134,14 @@ lives in Artifactory, content-addressed by that checksum.
 
 Published layout in Artifactory (defaults):
 ```
-qualcomm-dnf-repo/<pkg>/<version>/<pkg>-<ver>.<arch>.rpm
-qualcomm-dnf-repo/<pkg>/<version>/src/<pkg>-<ver>.src.rpm
+qualcomm-dnf-repo/10-stream/BaseOS/Packages/<pkg>-<ver>.<arch>.rpm
 qualcomm-dnf-repo/sources/<filename>/<hashtype>/<hash>/<filename>
 ```
+
+All RPMs (binary and source) are dumped **flat** into
+`10-stream/BaseOS/Packages/` — there are no `src/` or `output/` subfolders.
+Artifactory's YUM indexer writes the `repodata/` (with YUM Metadata Folder Depth
+`2`, at `qualcomm-dnf-repo/10-stream/BaseOS/repodata/`).
 
 ---
 
@@ -136,7 +150,9 @@ qualcomm-dnf-repo/sources/<filename>/<hashtype>/<hash>/<filename>
 | Name | Kind | Required | Purpose |
 |---|---|---|---|
 | `CACHE_BASE_URL` | Variable | **Yes** | Lookaside cache base URL. Build fails fast if unset. |
-| `QSC_API_KEY` | Secret | Release only | Mints the Artifactory token for publishing/cache-back. |
+| `ARTIFACTORY_ACCESS_TOKEN` | Secret | Release only | Artifactory token for publishing/cache-back. Current recommended credential. |
+| `QSC_API_KEY` | Secret | Optional | Exchanged for an Artifactory token; takes precedence over `ARTIFACTORY_ACCESS_TOKEN`. Not the recommended path yet. |
+| `centos.rpm.devs` membership | Qualcomm list | Release only | The publishing account must belong to [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs). |
 | `pkg-release-approval` | Environment | Release only | Approval gate before publishing. |
 | Self-hosted runner | — | Yes | Runs the build/publish jobs (Docker). |
 
@@ -152,6 +168,6 @@ qualcomm-dnf-repo/sources/<filename>/<hashtype>/<hash>/<filename>
 | `not in the cache and no matching SourceN: URL` | The tarball isn't cached and no spec `Source` URL matches its filename. Fix the `Source0:` filename or pre-seed the cache. |
 | `Checksum mismatch` | The cached/upstream tarball doesn't match `sources`. Fix the checksum or the upstream URL. |
 | `No '*.spec' file` / `Multiple spec files` | Keep exactly one spec at the repo root. |
-| `403` on publish | The QSC token's service account lacks Deploy permission on the backing repo (e.g. `qsc-rpm-local`). Request access. |
+| `403` on publish | The publishing account lacks Deploy permission on the target repo, or is not a member of the [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs) list. Request access. |
 
 See [`docs/workflows.md`](docs/workflows.md) for the full guide.
