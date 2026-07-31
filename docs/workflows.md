@@ -25,9 +25,12 @@ callers that delegate to reusable workflows in
 - `pkg-build-reusable-workflow.yml` — resolves sources and runs the build.
 - `pkg-release-reusable-workflow.yml` — builds then publishes to Artifactory.
 
-These reuse [`scripts/build-rpm.sh`](https://github.com/qualcomm-linux/qcom-rpm-utils/blob/main/scripts/build-rpm.sh)
-and its `Dockerfile`, which run a containerised `rpmbuild` for the runner's host
-architecture. See the
+These reuse [`scripts/build-rpm.sh`](https://github.com/qualcomm-linux/qcom-rpm-utils/blob/main/scripts/build-rpm.sh),
+which runs `rpmbuild` for the runner's host architecture inside the prebuilt
+[`rpm-builder`](https://github.com/qualcomm-linux/qcom-rpm-utils/blob/main/docker/Dockerfile.rpm-builder)
+image, pulled from GHCR as `ghcr.io/qualcomm-linux/rpm-builder:centos10`. Because
+the image is prebuilt and published separately, the caller must grant `packages: read` so the
+pull is authorised. See the
 [reusable-workflows docs](https://github.com/qualcomm-linux/qcom-rpm-utils/blob/main/docs/reusable-workflows.md)
 for their full input/secret reference.
 
@@ -212,6 +215,11 @@ Environments). Add required reviewers to it — the release workflow's publish s
 runs in this environment, so a maintainer must approve each release before
 anything is uploaded.
 
+Both caller workflows declare `permissions: packages: read` so the reusable build
+workflow can pull the `rpm-builder` image from GHCR. The build and publish jobs run on
+`[self-hosted, platform-prd-u2404-arm64-large-od-ephem]` — a label set inside the
+reusable workflows — so your repo needs access to that runner pool.
+
 ---
 
 ## Adding or updating a source tarball
@@ -255,6 +263,8 @@ are under the run's **Artifacts**; the package list is in the **Summary**.
 | `Checksum mismatch` | The cached/upstream tarball doesn't match `sources`. Fix the checksum (or the upstream URL). |
 | `No '*.spec' file found` / `Multiple spec files` | Keep exactly one spec file at the repo root. |
 | `Build produced no RPMs` | The `rpmbuild` failed — check the *Build RPMs* step logs. |
+| `denied` / `unauthorized` pulling `rpm-builder` from GHCR | The caller workflow lacks `packages: read`. |
+| Job stuck in *Queued* | No runner from the `platform-prd-u2404-arm64-large-od-ephem` pool is available to the repo. |
 
 ### `pkg-release.yml` — Release
 

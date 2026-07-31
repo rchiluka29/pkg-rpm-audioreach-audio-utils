@@ -9,8 +9,8 @@
 # All build logic lives in the shared reusable workflow
 # qualcomm-linux/qcom-rpm-utils/.github/workflows/pkg-build-reusable-workflow.yml,
 # which reads the dist-git `sources` file, resolves each tarball from the
-# lookaside cache, verifies its checksum, and runs the containerised multi-arch
-# rpmbuild.
+# lookaside cache, verifies its checksum, and runs `rpmbuild` inside the
+# prebuilt `rpm-builder` container image pulled from GHCR.
 #
 # Required configuration:
 #   vars.CACHE_BASE_URL - Base URL of the lookaside cache (Actions variable).
@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 # Prevent overlapping runs for the same PR; cancel superseded runs.
 concurrency:

@@ -18,8 +18,9 @@ repo — the workflows here are thin callers.
 | [`build-on-pr.yml`](.github/workflows/build-on-pr.yml) | Pull request | Build the RPM(s) so reviewers confirm the package still builds. Read-only — never publishes. |
 | [`pkg-release.yml`](.github/workflows/pkg-release.yml) | Manual (`workflow_dispatch`) | Build **and** publish the RPM(s) to Artifactory, behind an approval gate. |
 
-Both delegate to reusable workflows in `qcom-rpm-utils`, which run a
-containerised `rpmbuild` for the runner's host architecture.
+Both delegate to reusable workflows in `qcom-rpm-utils`, which run `rpmbuild`
+inside the prebuilt `rpm-builder` container image for the runner's host
+architecture.
 
 ---
 
@@ -57,8 +58,15 @@ cd pkg-rpm-<component>
 > release workflow. It is **not** the recommended path yet; this README will be
 > updated to prefer it once the QSC key issue is resolved.
 
-You also need a **self-hosted runner** available to the repo (the build/publish
-jobs use `runs-on: [self-hosted]`), with **Docker** installed.
+The build and publish jobs run on the shared AWS ephemeral ARM64 runner pool
+(`runs-on: [self-hosted, platform-prd-u2404-arm64-large-od-ephem]`), which has
+Docker available. That label is set inside the reusable workflows, so your repo
+must have access to that runner pool, or the jobs will queue forever waiting for
+a runner.
+
+The build pulls the prebuilt `rpm-builder` image from GHCR
+(`ghcr.io/qualcomm-linux/rpm-builder:centos10`). Both caller workflows therefore
+grant `packages: read`; keep that permission if you edit them.
 
 ### 3. Add your package files at the repo root
 
@@ -154,7 +162,7 @@ Artifactory's YUM indexer writes the `repodata/` (with YUM Metadata Folder Depth
 | `QSC_API_KEY` | Secret | Optional | Exchanged for an Artifactory token; takes precedence over `ARTIFACTORY_ACCESS_TOKEN`. Not the recommended path yet. |
 | `centos.rpm.devs` membership | Qualcomm list | Release only | The publishing account must belong to [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs). |
 | `pkg-release-approval` | Environment | Release only | Approval gate before publishing. |
-| Self-hosted runner | — | Yes | Runs the build/publish jobs (Docker). |
+| Runner pool access | — | Yes | Build/publish run on `[self-hosted, platform-prd-u2404-arm64-large-od-ephem]`. |
 
 ---
 
@@ -163,6 +171,8 @@ Artifactory's YUM indexer writes the `repodata/` (with YUM Metadata Folder Depth
 | Symptom | Cause / fix |
 |---|---|
 | `cache-base-url is empty` | Define the `CACHE_BASE_URL` Actions **variable**. |
+| `denied` / `unauthorized` pulling `rpm-builder` from GHCR | The caller workflow is missing `packages: read`. |
+| Build job never starts (stuck *Queued*) | No runner from the `platform-prd-u2404-arm64-large-od-ephem` pool is available to the repo. |
 | `No 'sources' file found` | Add a `sources` file at the repo root. |
 | `Malformed line in 'sources'` | Each line must be `HASHTYPE (filename) = hexdigest`. Use `sha512sum --tag`. |
 | `not in the cache and no matching SourceN: URL` | The tarball isn't cached and no spec `Source` URL matches its filename. Fix the `Source0:` filename or pre-seed the cache. |
