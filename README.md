@@ -3,11 +3,27 @@
 Template repository for creating RPM package repositories for Qualcomm® Linux.
 
 Clone this template to create a `pkg-rpm-<component>` repo for **one** RPM
-package. You add your spec file and a small `sources` pointer; the shipped
-GitHub Actions workflows build the RPM on every PR and publish it to Artifactory
-on demand. All build/release logic lives in the shared
+package. Your spec file and a small `sources` pointer go on a per-stream branch
+(`c10s`); the shipped GitHub Actions workflows build the RPM on every PR and
+publish it to Artifactory on demand. All build/release logic lives in the shared
 [`qualcomm-linux/qcom-rpm-utils`](https://github.com/qualcomm-linux/qcom-rpm-utils)
 repo — the workflows here are thin callers.
+
+> [!IMPORTANT]
+> **Get all the branches — the packaging files are not on `main`.**
+>
+> This repo uses one branch per distro stream: `main` holds the docs, and
+> **`c10s`** holds the spec file and `sources` you actually edit.
+>
+> - **Creating from the template:** tick **"Include all branches"** in the *Use
+>   this template* dialog. **It is off by default**, and with it off your new repo
+>   gets only `main` — no `c10s`, and nothing to build.
+> - **Cloning an existing repo:** a plain `git clone` fetches every branch, but
+>   leaves you on the default one. Run `git checkout c10s` to reach the packaging
+>   files.
+>
+> Already created a repo without the checkbox? Recover `c10s` with the snippet in
+> [step 1](#1-create-your-repo-from-this-template).
 
 ---
 
@@ -24,39 +40,50 @@ architecture.
 
 ---
 
+## Branch model
+
+This template follows the Fedora/CentOS **dist-git** convention: **one branch per
+distro stream**, with the packaging files at that branch's root.
+
+| Branch | Role | Contents |
+|---|---|---|
+| `main` | Template + docs home. **Nothing is built here.** | This README, [docs/](docs/), community files, workflows. |
+| `c10s` | **CentOS 10 Stream package branch — where you work.** | Your `<component>.spec` + `sources` at the root, plus the workflows. |
+
+Future streams get their own branch (`c11s`, …) off the same model, so one repo
+can carry a package for several distro versions without branching history.
+
+---
+
 ## Onboarding: step by step
 
 ### 1. Create your repo from this template
 Use **"Use this template" → Create a new repository**, naming it
-`pkg-rpm-<component>` (e.g. `pkg-rpm-audio`). Clone it locally:
+`pkg-rpm-<component>` (e.g. `pkg-rpm-audio`).
+
+> **Tick "Include all branches"** (see the note at the top — it is off by
+> default). If you already created the repo without it, recover `c10s` from the
+> template:
+> ```bash
+> git remote add template https://github.com/qualcomm-linux/pkg-rpm-template.git
+> git fetch template c10s
+> git push -u origin refs/remotes/template/c10s:refs/heads/c10s
+> git remote remove template
+> ```
+
+Clone it and switch to the package branch:
 
 ```bash
 git clone https://github.com/qualcomm-linux/pkg-rpm-<component>.git
 cd pkg-rpm-<component>
+git checkout c10s
 ```
 
 ### 2. Configure GitHub settings (one-time)
 
-> Template repositories copy **files only** — not variables, secrets, or
-> environments. You must set these on your new repo (Settings → …). If they are
-> defined at the **organization** level and shared with `pkg-rpm-*` repos, you
-> can skip the ones already inherited.
-
 | Setting | Kind | Where | Value / purpose |
 |---|---|---|---|
-| `CACHE_BASE_URL` | **Variable** | Secrets and variables → Actions → *Variables* | Base URL of the Artifactory lookaside cache, e.g. `https://qartifactory.qualcomm.com/artifactory/qualcomm-dnf-repo/sources` |
-| `ARTIFACTORY_ACCESS_TOKEN` | **Secret** | Secrets and variables → Actions → *Secrets* | Artifactory access token used to publish RPMs and cache sources back. Release only. **Current recommended credential.** |
 | `pkg-release-approval` | **Environment** | Environments | Approval gate for publishing — add required reviewers. |
-
-> **Publishing access:** the account behind `ARTIFACTORY_ACCESS_TOKEN` must be a
-> member of the [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs)
-> Qualcomm list, or Artifactory will reject the upload. Request membership before
-> your first release.
-
-> **Note:** a `QSC_API_KEY` secret (exchanged for an Artifactory token, and taking
-> precedence over `ARTIFACTORY_ACCESS_TOKEN` when set) is also supported by the
-> release workflow. It is **not** the recommended path yet; this README will be
-> updated to prefer it once the QSC key issue is resolved.
 
 The build and publish jobs run on the shared AWS ephemeral ARM64 runner pool
 (`runs-on: [self-hosted, platform-prd-u2404-arm64-large-od-ephem]`), which has
@@ -68,18 +95,24 @@ The build pulls the prebuilt `rpm-builder` image from GHCR
 (`ghcr.io/qualcomm-linux/rpm-builder:centos10`). Both caller workflows therefore
 grant `packages: read`; keep that permission if you edit them.
 
-### 3. Add your package files at the repo root
+### 3. Add your package files on the `c10s` branch
+
+The starter files are already at the root of `c10s`, carrying a `.example`
+suffix. Rename them:
+
+```bash
+git checkout c10s
+git mv mypackage.spec.example <component>.spec
+git mv sources.example sources
+```
+
+The suffix exists so the build's single-`*.spec` glob ignores the skeleton until
+you rename it — otherwise your first PR would fail with `Multiple spec files`.
+After the rename the branch root holds:
 
 ```
 <component>.spec     # exactly one RPM spec file
 sources              # checksum + filename of each source tarball
-```
-
-Starter copies are in [`examples/`](examples/) — copy them to the root and edit:
-
-```bash
-cp examples/mypackage.spec <component>.spec
-cp examples/sources sources
 ```
 
 - **`<component>.spec`** — your RPM spec. Its `Source0:`/`SourceN:` must be a
@@ -100,13 +133,14 @@ cp examples/sources sources
   ```
 
 ### 4. Open a PR
-Commit the spec + `sources` and open a PR. `build-on-pr` fetches the tarball
-(from the cache, or from the spec's `Source` URL on a cache miss), verifies its
-checksum, and builds the RPM(s). Download the built RPMs from the run's
-**Artifacts**; the package list is in the run **Summary**.
+Commit the spec + `sources` and open a PR **against `c10s`**. `build-on-pr`
+fetches the tarball (from the cache, or from the spec's `Source` URL on a cache
+miss), verifies its checksum, and builds the RPM(s). Download the built RPMs from
+the run's **Artifacts**; the package list is in the run **Summary**.
 
 ### 5. Release (publish to Artifactory)
-After merge, go to **Actions → Release → Run workflow**:
+After merge, go to **Actions → Release → Run workflow** and select the `c10s`
+branch:
 - A reviewer approves the `pkg-release-approval` gate.
 - Once approved, the RPM(s) are published to Artifactory.
 
@@ -114,7 +148,7 @@ After merge, go to **Actions → Release → Run workflow**:
 
 ## Updating the package version
 
-This is the everyday workflow — **two edits, no tarball in git**:
+This is the everyday workflow — **two edits on `c10s`, no tarball in git**:
 
 1. Bump `Version:` in the spec (and the `Source0:` URL if its path changed).
 2. Recompute the checksum for the new tarball:
@@ -157,10 +191,6 @@ Artifactory's YUM indexer writes the `repodata/` (with YUM Metadata Folder Depth
 
 | Name | Kind | Required | Purpose |
 |---|---|---|---|
-| `CACHE_BASE_URL` | Variable | **Yes** | Lookaside cache base URL. Build fails fast if unset. |
-| `ARTIFACTORY_ACCESS_TOKEN` | Secret | Release only | Artifactory token for publishing/cache-back. Current recommended credential. |
-| `QSC_API_KEY` | Secret | Optional | Exchanged for an Artifactory token; takes precedence over `ARTIFACTORY_ACCESS_TOKEN`. Not the recommended path yet. |
-| `centos.rpm.devs` membership | Qualcomm list | Release only | The publishing account must belong to [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs). |
 | `pkg-release-approval` | Environment | Release only | Approval gate before publishing. |
 | Runner pool access | — | Yes | Build/publish run on `[self-hosted, platform-prd-u2404-arm64-large-od-ephem]`. |
 
@@ -173,11 +203,11 @@ Artifactory's YUM indexer writes the `repodata/` (with YUM Metadata Folder Depth
 | `cache-base-url is empty` | Define the `CACHE_BASE_URL` Actions **variable**. |
 | `denied` / `unauthorized` pulling `rpm-builder` from GHCR | The caller workflow is missing `packages: read`. |
 | Build job never starts (stuck *Queued*) | No runner from the `platform-prd-u2404-arm64-large-od-ephem` pool is available to the repo. |
-| `No 'sources' file found` | Add a `sources` file at the repo root. |
+| `No 'sources' file found` | Add a `sources` file at the root of the `c10s` branch (rename `sources.example`). |
 | `Malformed line in 'sources'` | Each line must be `HASHTYPE (filename) = hexdigest`. Use `sha512sum --tag`. |
 | `not in the cache and no matching SourceN: URL` | The tarball isn't cached and no spec `Source` URL matches its filename. Fix the `Source0:` filename or pre-seed the cache. |
 | `Checksum mismatch` | The cached/upstream tarball doesn't match `sources`. Fix the checksum or the upstream URL. |
-| `No '*.spec' file` / `Multiple spec files` | Keep exactly one spec at the repo root. |
-| `403` on publish | The publishing account lacks Deploy permission on the target repo, or is not a member of the [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs) list. Request access. |
+| `No '*.spec' file` / `Multiple spec files` | Keep exactly one spec on `c10s`. If you added your own alongside `mypackage.spec.example`, the suffix should have hidden it — check you didn't drop the `.example`. |
+| No `c10s` branch in your new repo | You created it without ticking **Include all branches**. See the recovery snippet in step 1. |
 
 See [`docs/workflows.md`](docs/workflows.md) for the full guide.

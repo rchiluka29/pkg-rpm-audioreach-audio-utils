@@ -10,8 +10,8 @@ their package.
 
 This template provides automated CI for **one RPM package per repository**. When
 you clone this template for your component, you add your package's spec file and
-a `sources` file; the workflows then build (on every PR) and release (on demand)
-the RPM for you.
+a `sources` file on the `c10s` branch; the workflows then build (on every PR) and
+release (on demand) the RPM for you.
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
@@ -87,21 +87,36 @@ Artifactory so later builds reuse it — the Fedora/CentOS dist-git model.
 
 ## Repository layout
 
-Place these at the **root** of your package repository:
+Packaging files live on a **per-stream branch**, at that branch's root —
+following the dist-git convention of one branch per distro release:
+
+| Branch | Role |
+|---|---|
+| `main` | Template + docs home. Nothing is built here. |
+| `c10s` | CentOS 10 Stream package branch — where maintainers work. |
+
+On `c10s`:
 
 ```
 <your-package>.spec     # the RPM spec file (exactly one)
 sources                 # checksum + filename of each source tarball (see below)
 ```
 
-Starter copies live in [`examples/`](../examples/) — copy them to the root and
-edit them for your component.
+The branch ships these as `mypackage.spec.example` and `sources.example`; rename
+them with `git mv` on first use. The `.example` suffix keeps the skeleton
+invisible to the build's single-`*.spec` glob, so a fresh repo's first PR doesn't
+fail with `Multiple spec files`.
 
 - **`<your-package>.spec`** — your RPM spec. The workflows expect exactly one
-  `*.spec` file at the repo root. Its `Source0:`/`SourceN:` URLs must point at
+  `*.spec` file at the branch root. Its `Source0:`/`SourceN:` URLs must point at
   fetchable upstream tarballs (see the cache model below).
 - **`sources`** — a small text file pointing at your source tarball(s) by
   checksum.
+
+> **Note:** the branch name does not yet select the target stream. The builder
+> image is pinned to `rpm-builder:centos10` and the publish path defaults to
+> `10-stream/BaseOS/Packages/` inside `qcom-rpm-utils`. A future `c11s` branch
+> will need the caller workflows to pass the stream explicitly.
 
 > **Tarballs are never committed to git.** Binary tarballs bloat git history and
 > produce meaningless diffs. They live in a *lookaside cache* instead; git only
@@ -156,8 +171,7 @@ Before building, the reusable workflow runs
 for each entry in `sources`:
 
 1. **Cache lookup.** It computes the lookaside path under `CACHE_BASE_URL`
-   (default layout `{name}/{filename}/{hashtype}/{hash}/{filename}`, where
-   `{name}` is your repository name) and checks whether the tarball already
+   (default layout `{filename}/{hashtype}/{hash}/{filename}`), checks whether the tarball already
    exists there.
 2. **Cache hit** → download the tarball from the cache.
    **Cache miss** → expand your spec, find the `SourceN:` URL whose filename
@@ -178,12 +192,11 @@ populates the cache.
 The default path template is the dist-git layout:
 
 ```
-{name}/{filename}/{hashtype}/{hash}/{filename}
+{filename}/{hashtype}/{hash}/{filename}
 ```
 
 | Placeholder | Value |
 |---|---|
-| `{name}` | repository name (the package's lookaside namespace) |
 | `{filename}` | the tarball filename from `sources` |
 | `{hashtype}` | lowercased hash type, e.g. `sha512` |
 | `{hash}` | the hex digest from `sources` |
@@ -195,20 +208,7 @@ If your cache uses a different layout, override it with the
 
 ## Required configuration
 
-Configure these under **Settings → Secrets and variables → Actions** on your
-repository (or organization):
-
-| Name | Kind | Required | Description |
-|---|---|---|---|
-| `CACHE_BASE_URL` | Variable | **Yes** | Base URL of the lookaside cache that stores your source tarballs (e.g. the Artifactory `qualcomm-dnf-repo/sources` base). The build fails fast if unset. |
-| `ARTIFACTORY_ACCESS_TOKEN` | Secret | Release only | Artifactory access token used to publish RPMs and to cache source tarballs back. **Current recommended credential.** |
-| `QSC_API_KEY` | Secret | Optional | QSC API key exchanged for an Artifactory access token. **Takes precedence** over `ARTIFACTORY_ACCESS_TOKEN` when set. Not the recommended path yet. |
-
-At least one of `ARTIFACTORY_ACCESS_TOKEN` / `QSC_API_KEY` must be set for the
-release flow; the publish step fails if neither is present. The account behind
-whichever credential you use must have Deploy permission on the target repo **and**
-be a member of the [`centos.rpm.devs`](https://lists.qualcomm.com/ListManager?id=centos.rpm.devs)
-Qualcomm list, or Artifactory will reject the upload.
+The following github env is required for the workflows to run successfully:
 
 You also need an **environment** named `pkg-release-approval` (Settings →
 Environments). Add required reviewers to it — the release workflow's publish step
@@ -256,12 +256,12 @@ are under the run's **Artifacts**; the package list is in the **Summary**.
 
 | Symptom | Cause / fix |
 |---|---|
-| `No 'sources' file found` | Add a `sources` file at the repo root. |
+| `No 'sources' file found` | Add a `sources` file at the root of the `c10s` branch (rename `sources.example`). |
 | `cache-base-url is empty` | Define the `CACHE_BASE_URL` Actions variable. |
 | `Malformed line in 'sources'` | Each line must be `HASHTYPE (filename) = hexdigest`. Use `sha512sum --tag`. |
 | `not in the cache and no matching SourceN: URL` | The tarball was not cached and no spec `Source` URL matches its filename. Fix the `Source0:` filename or pre-seed the cache. |
 | `Checksum mismatch` | The cached/upstream tarball doesn't match `sources`. Fix the checksum (or the upstream URL). |
-| `No '*.spec' file found` / `Multiple spec files` | Keep exactly one spec file at the repo root. |
+| `No '*.spec' file found` / `Multiple spec files` | Keep exactly one spec file at the branch root. Check you renamed `mypackage.spec.example` rather than copying it. |
 | `Build produced no RPMs` | The `rpmbuild` failed — check the *Build RPMs* step logs. |
 | `denied` / `unauthorized` pulling `rpm-builder` from GHCR | The caller workflow lacks `packages: read`. |
 | Job stuck in *Queued* | No runner from the `platform-prd-u2404-arm64-large-od-ephem` pool is available to the repo. |
