@@ -6,14 +6,6 @@
 # Manually-triggered workflow that builds the package's RPM(s) and publishes
 # them to JFrog Artifactory.
 #
-# Required configuration:
-#   vars.CACHE_BASE_URL              - Base URL of the lookaside cache (Actions variable).
-#   secrets.ARTIFACTORY_ACCESS_TOKEN - Artifactory access token used to publish
-#                                      (current recommended credential).
-#   secrets.QSC_API_KEY              - Optional. QSC API key exchanged for an
-#                                      Artifactory token; takes precedence over
-#                                      ARTIFACTORY_ACCESS_TOKEN when set.
-#
 # See the `main` branch's docs/workflows.md for the full documentation.
 # =============================================================================
 name: Release
@@ -31,7 +23,6 @@ jobs:
     with:
       qcom-rpm-utils-ref: main
       cache-base-url: ${{ vars.CACHE_BASE_URL }}
-      server-url: https://qartifactory.qualcomm.com
     secrets:
+      QSC_API_KEY: ${{ secrets.QSC_API_KEY }}
       ARTIFACTORY_ACCESS_TOKEN: ${{ secrets.ARTIFACTORY_ACCESS_TOKEN }}
-      # QSC_API_KEY: ${{ secrets.QSC_API_KEY }}
