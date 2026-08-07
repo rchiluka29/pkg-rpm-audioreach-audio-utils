@@ -1,7 +1,9 @@
 # Example dist-git `sources` file.
 #
-# Copy this to the repository ROOT as `sources` (no extension) and replace the
-# entry below with your real tarball's checksum.
+# Rename this to `sources` (no extension, no suffix) and replace the entry below
+# with your real tarball's checksum:
+#
+#   git mv sources.example sources
 #
 # Format (one source per line, BSD `shaNsum --tag` style):
 #   HASHTYPE (filename) = hexdigest

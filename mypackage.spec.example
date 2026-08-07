@@ -1,3 +1,12 @@
+# Example RPM spec file.
+#
+# Rename this to <your-component>.spec and edit the fields below:
+#
+#   git mv mypackage.spec.example mycomponent.spec
+#
+# The workflows expect exactly ONE *.spec at the repo root, which is why this
+# ships with a .example suffix — it stays invisible to the build until renamed.
+#
 Name:           mypackage
 Version:        1.0
 Release:        1%{?dist}

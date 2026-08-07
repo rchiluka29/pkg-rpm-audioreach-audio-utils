@@ -14,7 +14,7 @@
 #                                      Artifactory token; takes precedence over
 #                                      ARTIFACTORY_ACCESS_TOKEN when set.
 #
-# See docs/workflows.md for the full documentation.
+# See the `main` branch's docs/workflows.md for the full documentation.
 # =============================================================================
 name: Release
 
