@@ -74,7 +74,7 @@ pkg-release.yml ──calls──▶ pkg-release-reusable-workflow.yml (qcom-rpm
    │
    ▼
    └─ job: publish   ⛔ environment: pkg-release-approval (human approves)
-          ARTIFACTORY_ACCESS_TOKEN (or QSC_API_KEY) → jf rt upload
+          RPM_ARTIFACTORY_ACCESS_TOKEN (or QSC_API_KEY) → jf rt upload
              *.rpm     ──▶ qualcomm-dnf-repo/10-stream/BaseOS/Packages/
              *.src.rpm ──▶ qualcomm-dnf-repo/10-stream/BaseOS/Packages/
 ```
@@ -170,7 +170,7 @@ Before building, the reusable workflow runs
 [`resolve-sources.sh`](https://github.com/qualcomm-linux/qcom-rpm-utils/blob/main/scripts/resolve-sources.sh)
 for each entry in `sources`:
 
-1. **Cache lookup.** It computes the lookaside path under `CACHE_BASE_URL`
+1. **Cache lookup.** It computes the lookaside path under `SRC_TARBALL_CACHE_BASE_URL`
    (default layout `{filename}/{hashtype}/{hash}/{filename}`), checks whether the tarball already
    exists there.
 2. **Cache hit** → download the tarball from the cache.
@@ -180,7 +180,7 @@ for each entry in `sources`:
    source — fails the build. This is what makes the cache trustworthy.
 4. **Cache-back** (release builds only): a tarball that had to be fetched from
    upstream is uploaded to the cache so future builds get a cache hit. This needs
-   an Artifactory credential (`ARTIFACTORY_ACCESS_TOKEN`, or `QSC_API_KEY`) and
+   an Artifactory credential (`RPM_ARTIFACTORY_ACCESS_TOKEN`, or `QSC_API_KEY`) and
    runs only in the release flow, not on PRs.
 
 To bump the version, edit the spec's `Version:` and the checksum in `sources`.
@@ -257,7 +257,7 @@ are under the run's **Artifacts**; the package list is in the **Summary**.
 | Symptom | Cause / fix |
 |---|---|
 | `No 'sources' file found` | Add a `sources` file at the root of the `c10s` branch (rename `sources.example`). |
-| `cache-base-url is empty` | Define the `CACHE_BASE_URL` Actions variable. |
+| `cache-base-url is empty` | Define the `SRC_TARBALL_CACHE_BASE_URL` Actions variable. |
 | `Malformed line in 'sources'` | Each line must be `HASHTYPE (filename) = hexdigest`. Use `sha512sum --tag`. |
 | `not in the cache and no matching SourceN: URL` | The tarball was not cached and no spec `Source` URL matches its filename. Fix the `Source0:` filename or pre-seed the cache. |
 | `Checksum mismatch` | The cached/upstream tarball doesn't match `sources`. Fix the checksum (or the upstream URL). |

@@ -166,7 +166,7 @@ This is the everyday workflow — **two edits on `c10s`, no tarball in git**:
 The dist-git **lookaside cache** model: git stores only the checksum; the tarball
 lives in Artifactory, content-addressed by that checksum.
 
-1. The build computes the cache path from `CACHE_BASE_URL` + the `sources` entry
+1. The build computes the cache path from `SRC_TARBALL_CACHE_BASE_URL` + the `sources` entry
    and checks whether the tarball is already cached.
 2. **Cache hit** → download from the cache. **Cache miss** → download from the
    spec's `Source` URL.
@@ -200,7 +200,7 @@ Artifactory's YUM indexer writes the `repodata/` (with YUM Metadata Folder Depth
 
 | Symptom | Cause / fix |
 |---|---|
-| `cache-base-url is empty` | Define the `CACHE_BASE_URL` Actions **variable**. |
+| `cache-base-url is empty` | Define the `SRC_TARBALL_CACHE_BASE_URL` Actions **variable**. |
 | `denied` / `unauthorized` pulling `rpm-builder` from GHCR | The caller workflow is missing `packages: read`. |
 | Build job never starts (stuck *Queued*) | No runner from the `platform-prd-u2404-arm64-large-od-ephem` pool is available to the repo. |
 | `No 'sources' file found` | Add a `sources` file at the root of the `c10s` branch (rename `sources.example`). |
